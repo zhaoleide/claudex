@@ -8,6 +8,7 @@ let mainWindow: BrowserWindow | null = null
 autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.allowDowngrade = false
+autoUpdater.forceDevUpdateConfig = true // Enable update checking in development
 
 function sendToRenderer(channel: string, data?: unknown) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -19,9 +20,10 @@ export function setupAutoUpdater(win: BrowserWindow) {
   mainWindow = win
 
   // Only enable auto update in production
+  // TEMP: Enable in development for testing
   if (!app.isPackaged) {
-    console.log('[AutoUpdater] Disabled in development mode')
-    return
+    console.log('[AutoUpdater] Running in development mode (testing enabled)')
+    // return  // Commented out for testing
   }
 
   console.log('[AutoUpdater] Initialized')
@@ -47,6 +49,8 @@ export function setupAutoUpdater(win: BrowserWindow) {
 
   autoUpdater.on('update-not-available', () => {
     console.log('[AutoUpdater] No updates available')
+    // Notify renderer that check completed but no update available
+    sendToRenderer(IPC.updateNotAvailable)
   })
 
   autoUpdater.on('error', (err) => {

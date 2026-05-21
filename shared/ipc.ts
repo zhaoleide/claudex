@@ -95,6 +95,7 @@ export const IPC = {
   updateInstall: 'update:install',
   updateProgress: 'update:progress', // main -> renderer
   updateAvailable: 'update:available', // main -> renderer
+  updateNotAvailable: 'update:not-available', // main -> renderer
   updateError: 'update:error', // main -> renderer
   updateDownloaded: 'update:downloaded', // main -> renderer
 

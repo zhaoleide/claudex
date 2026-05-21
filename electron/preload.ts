@@ -109,6 +109,11 @@ const api = {
       ipcRenderer.on(IPC.updateAvailable, listener)
       return () => ipcRenderer.removeListener(IPC.updateAvailable, listener)
     },
+    onNotAvailable: (cb: () => void) => {
+      const listener = (_evt: unknown) => cb()
+      ipcRenderer.on(IPC.updateNotAvailable, listener)
+      return () => ipcRenderer.removeListener(IPC.updateNotAvailable, listener)
+    },
     onError: (cb: (data: { message: string }) => void) => {
       const listener = (_evt: unknown, data: any) => cb(data)
       ipcRenderer.on(IPC.updateError, listener)

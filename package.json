@@ -62,6 +62,7 @@
       "releaseType": "release"
     },
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg"
       ],

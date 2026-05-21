@@ -3,6 +3,15 @@ import { Save, Plus, Trash2, RefreshCw, Info, Download, CheckCircle, AlertCircle
 import type { ClaudeSettings } from '@shared/ipc'
 
 type PermKey = 'allow' | 'deny' | 'ask'
+type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
 const PERM_KEYS: PermKey[] = ['allow', 'deny', 'ask']
 const PERM_LABEL: Record<PermKey, string> = {
   allow: '总是允许',
@@ -16,10 +25,16 @@ export function SettingsView() {
   const [tab, setTab] = useState<'visual' | 'json'>('visual')
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState<string>('')
 
   // Auto update state
-  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error'>('idle')
-  const [updateInfo, setUpdateInfo] = useState<{ version?: string; progress?: number; error?: string }>({})
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle')
+  const [updateInfo, setUpdateInfo] = useState<{
+    version?: string
+    progress?: number
+    error?: string
+    checkedAt?: number
+  }>({})
 
   const load = async () => {
     const s = await window.claudex.config.read()
@@ -30,11 +45,19 @@ export function SettingsView() {
 
   useEffect(() => {
     load().catch((e) => setError(String(e)))
+    window.claudex.app
+      .info()
+      .then((info) => setAppVersion(info.version))
+      .catch(console.error)
 
     // Setup update listeners
     const offAvailable = window.claudex.update.onAvailable((data) => {
       setUpdateStatus('available')
       setUpdateInfo({ version: data.version })
+    })
+    const offNotAvailable = window.claudex.update.onNotAvailable(() => {
+      setUpdateStatus('up-to-date')
+      setUpdateInfo({ checkedAt: Date.now() })
     })
     const offProgress = window.claudex.update.onProgress((data) => {
       setUpdateStatus('downloading')
@@ -51,6 +74,7 @@ export function SettingsView() {
 
     return () => {
       offAvailable()
+      offNotAvailable()
       offProgress()
       offDownloaded()
       offError()
@@ -86,6 +110,7 @@ export function SettingsView() {
       setUpdateStatus('error')
       setUpdateInfo({ error: result.error })
     }
+    // If check succeeds, the 'available' or 'not-available' event will update the status
   }
 
   const downloadUpdate = async () => {
@@ -159,7 +184,7 @@ export function SettingsView() {
               <div>
                 <div className="text-sm text-ink">当前版本</div>
                 <div className="text-xs text-muted font-mono mt-1">
-                  检查更新以获取最新版本
+                  {appVersion ? `v${appVersion}` : '读取版本中…'}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -181,6 +206,16 @@ export function SettingsView() {
                 {updateStatus === 'downloaded' && (
                   <span className="text-xs text-emerald-600 flex items-center gap-1">
                     <CheckCircle size={12} /> 已下载 {updateInfo.version}
+                  </span>
+                )}
+                {updateStatus === 'up-to-date' && (
+                  <span className="text-xs text-emerald-600 flex items-center gap-1">
+                    <CheckCircle size={12} /> 已是最新版本
+                    {updateInfo.checkedAt && (
+                      <span className="text-muted">
+                        · {new Date(updateInfo.checkedAt).toLocaleTimeString('zh-CN')}
+                      </span>
+                    )}
                   </span>
                 )}
                 {updateStatus === 'error' && (
@@ -206,9 +241,9 @@ export function SettingsView() {
 
             {/* Action buttons */}
             <div className="flex gap-2">
-              {(updateStatus === 'idle' || updateStatus === 'error') && (
+              {(updateStatus === 'idle' || updateStatus === 'error' || updateStatus === 'up-to-date') && (
                 <button onClick={checkForUpdate} className="btn">
-                  <RefreshCw size={13} /> 检查更新
+                  <RefreshCw size={13} /> {updateStatus === 'up-to-date' ? '重新检查' : '检查更新'}
                 </button>
               )}
               {updateStatus === 'available' && (

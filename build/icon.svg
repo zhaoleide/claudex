@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Rounded square background -->
+  <rect x="40" y="40" width="944" height="944" rx="200" ry="200" fill="url(#bgGrad)" filter="url(#shadow)"/>
+  
+  <!-- Terminal window -->
+  <rect x="162" y="242" width="700" height="540" rx="40" ry="40" fill="#1e1e2e" opacity="0.95"/>
+  
+  <!-- Terminal header -->
+  <rect x="162" y="242" width="700" height="80" rx="40" ry="40" fill="#2d2d3d"/>
+  <rect x="162" y="282" width="700" height="40" fill="#2d2d3d"/>
+  
+  <!-- Window control buttons -->
+  <circle cx="222" cy="282" r="16" fill="#ff5f56"/>
+  <circle cx="282" cy="282" r="16" fill="#ffbd2e"/>
+  <circle cx="342" cy="282" r="16" fill="#27c93f"/>
+  
+  <!-- Terminal text lines -->
+  <rect x="222" y="362" width="400" height="20" rx="10" fill="#7c3aed" opacity="0.8"/>
+  <rect x="222" y="412" width="520" height="20" rx="10" fill="#a78bfa" opacity="0.6"/>
+  <rect x="222" y="462" width="480" height="20" rx="10" fill="#a78bfa" opacity="0.6"/>
+  <rect x="222" y="512" width="350" height="20" rx="10" fill="#a78bfa" opacity="0.6"/>
+  <rect x="222" y="562" width="440" height="20" rx="10" fill="#a78bfa" opacity="0.6"/>
+  <rect x="222" y="612" width="280" height="20" rx="10" fill="#7c3aed" opacity="0.8"/>
+  
+  <!-- Cursor -->
+  <rect x="522" y="612" width="20" height="20" rx="4" fill="#7c3aed">
+    <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+  </rect>
+  
+  <!-- Code brackets decoration -->
+  <path d="M 742 482 L 702 522 L 742 562" stroke="#a78bfa" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+  <path d="M 782 482 L 822 522 L 782 562" stroke="#a78bfa" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+</svg>
