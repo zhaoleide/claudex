@@ -45,7 +45,7 @@ export function setupAutoUpdater(win: BrowserWindow) {
     })
   })
 
-  autoUpdater.on('update-not-available', (info) => {
+  autoUpdater.on('update-not-available', () => {
     console.log('[AutoUpdater] No updates available')
   })
 

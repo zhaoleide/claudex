@@ -1,11 +1,11 @@
 export function v4(): string {
   // Browser-safe RFC 4122 v4 UUID
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
+    return (crypto as any).randomUUID()
   }
   const bytes = new Uint8Array(16)
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes)
+  if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
+    (crypto as any).getRandomValues(bytes)
   } else {
     for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256)
   }
