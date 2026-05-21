@@ -1,1 +1,1 @@
-{"root":["./vite.config.ts","./electron/config.ts","./electron/main.ts","./electron/preload.ts","./electron/projects.ts","./electron/pty.ts","./electron/sessions.ts","./electron/updater.ts","./shared/ipc.ts"],"errors":true,"version":"5.9.3"}
+{"root":["./vite.config.ts","./electron/config.ts","./electron/main.ts","./electron/preload.ts","./electron/projects.ts","./electron/pty.ts","./electron/sessions.ts","./electron/updater.ts","./shared/ipc.ts"],"version":"5.9.3"}
