@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   FolderOpen,
   FolderPlus,
   Plus,
   Play,
+  Pencil,
   RefreshCw,
   Search,
   Settings2,
@@ -80,6 +81,12 @@ export function Sidebar() {
 
   useEffect(() => {
     loadSessions()
+    console.log('[Sidebar] subscribing to sessions.onChanged')
+    const off = window.claudex.sessions.onChanged(() => {
+      console.log('[Sidebar] sessions changed event received, reloading')
+      loadSessions()
+    })
+    return off
   }, [])
 
   const refresh = async () => {
@@ -208,6 +215,24 @@ export function Sidebar() {
     removeProject(p.id)
   }
 
+  const onDeleteSession = async (s: ClaudeSession) => {
+    const preview = (s.preview || '（无预览）').slice(0, 40)
+    if (
+      !confirm(
+        `永久删除该会话？\n\n${preview}\n\n这会删除磁盘上的 .jsonl 日志文件，且不可恢复。`
+      )
+    ) {
+      return
+    }
+    const res = await window.claudex.sessions.delete(s.id)
+    if (!res.ok) {
+      alert(`删除失败：${res.error ?? '未知错误'}`)
+      return
+    }
+    // 文件 watcher 会自动触发 onChanged 重新加载；这里也手动刷一次保证体感即时
+    loadSessions()
+  }
+
   return (
     <aside className="w-[340px] shrink-0 border-r border-border bg-bg-subtle flex flex-col min-h-0">
       {/* 顶部操作区 */}
@@ -260,6 +285,7 @@ export function Sidebar() {
               const list = sessionsFor(p)
               const visible = list.filter(
                 (s) =>
+                  matchesFilter(s.customName) ||
                   matchesFilter(s.preview) ||
                   matchesFilter(s.lastMessage) ||
                   matchesFilter(p.name) ||
@@ -283,6 +309,7 @@ export function Sidebar() {
                   onToggle={() => toggle(p.id)}
                   onLaunch={() => launchProject(p)}
                   onResume={(s) => launchProject(p, s)}
+                  onDeleteSession={onDeleteSession}
                   onToggleFav={() => onToggleFav(p)}
                   onRemove={() => onRemove(p)}
                 />
@@ -301,6 +328,7 @@ export function Sidebar() {
                       matchesFilter(cwd) ||
                       list.some(
                         (s) =>
+                          matchesFilter(s.customName) ||
                           matchesFilter(s.preview) ||
                           matchesFilter(s.lastMessage)
                       )
@@ -315,6 +343,7 @@ export function Sidebar() {
                       onAdopt={() => adoptOrphan(cwd)}
                       onResume={(s) => launchByPath(cwd, s)}
                       onLaunch={() => launchByPath(cwd)}
+                      onDeleteSession={onDeleteSession}
                     />
                   ))}
               </div>
@@ -385,6 +414,7 @@ function ProjectNode({
   onToggle,
   onLaunch,
   onResume,
+  onDeleteSession,
   onToggleFav,
   onRemove
 }: {
@@ -395,6 +425,7 @@ function ProjectNode({
   onToggle: () => void
   onLaunch: () => void
   onResume: (s: ClaudeSession) => void
+  onDeleteSession: (s: ClaudeSession) => void
   onToggleFav: () => void
   onRemove: () => void
 }) {
@@ -473,6 +504,7 @@ function ProjectNode({
                 key={s.id}
                 session={s}
                 onResume={() => onResume(s)}
+                onDelete={() => onDeleteSession(s)}
               />
             ))
           )}
@@ -489,7 +521,8 @@ function OrphanNode({
   onToggle,
   onAdopt,
   onResume,
-  onLaunch
+  onLaunch,
+  onDeleteSession
 }: {
   cwd: string
   sessions: ClaudeSession[]
@@ -498,6 +531,7 @@ function OrphanNode({
   onAdopt: () => void
   onResume: (s: ClaudeSession) => void
   onLaunch: () => void
+  onDeleteSession: (s: ClaudeSession) => void
 }) {
   return (
     <div className="rounded-md border border-dashed border-border mb-2 overflow-hidden">
@@ -542,6 +576,7 @@ function OrphanNode({
               key={s.id}
               session={s}
               onResume={() => onResume(s)}
+              onDelete={() => onDeleteSession(s)}
             />
           ))}
           {sessions.length > 5 && (
@@ -557,51 +592,118 @@ function OrphanNode({
 
 function SessionRow({
   session,
-  onResume
+  onResume,
+  onDelete
 }: {
   session: ClaudeSession
   onResume: () => void
+  onDelete: () => void
 }) {
   const turns = session.messageCount ?? 0
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const startRename = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDraft(session.customName || session.preview || '')
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  const commitRename = async () => {
+    setEditing(false)
+    const trimmed = draft.trim()
+    // 如果和原始 preview 相同或为空，则清除自定义名
+    const name = trimmed === (session.preview || '').trim() ? '' : trimmed
+    await window.claudex.sessions.rename(session.id, name)
+  }
+
+  const displayName = session.customName || session.preview
+
   return (
-    <button
-      onClick={onResume}
-      className="w-full text-left flex items-start gap-1.5 px-1.5 py-1.5 rounded border border-transparent hover:border-border hover:bg-bg-subtle transition-colors group"
-      title="点击恢复该会话"
-    >
-      <MessageSquare size={11} className="mt-1 text-muted shrink-0" />
-      <div className="flex-1 min-w-0">
-        <div className="text-[12px] text-ink line-clamp-2 leading-snug">
-          {session.preview || (
-            <span className="text-muted">（没有用户消息）</span>
-          )}
+    <div className="group relative flex items-start gap-1.5 px-1.5 py-1.5 rounded border border-transparent hover:border-border hover:bg-bg-subtle transition-colors">
+      {editing ? (
+        <div className="flex-1 min-w-0 flex items-start gap-1.5">
+          <MessageSquare size={11} className="mt-1 text-muted shrink-0" />
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename()
+              if (e.key === 'Escape') setEditing(false)
+            }}
+            className="input h-5 text-[12px] w-full px-1"
+            autoFocus
+          />
         </div>
-        {session.lastMessage && (
-          <div className="text-[11px] text-ink-soft mt-0.5 line-clamp-1">
-            <span className="text-muted">最近：</span>
-            {session.lastMessage}
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted">
-          <span>{formatRelative(session.modifiedAt)}</span>
-          <span>·</span>
-          <span>{turns} 轮</span>
-          {session.gitBranch && (
-            <>
+      ) : (
+        <button
+          onClick={onResume}
+          className="flex-1 min-w-0 text-left flex items-start gap-1.5"
+          title="点击恢复该会话"
+        >
+          <MessageSquare size={11} className="mt-1 text-muted shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] text-ink line-clamp-2 leading-snug">
+              {session.customName ? (
+                <span className="font-medium">{session.customName}</span>
+              ) : (
+                displayName || (
+                  <span className="text-muted">（没有用户消息）</span>
+                )
+              )}
+            </div>
+            {session.customName && session.preview && (
+              <div className="text-[11px] text-ink-soft mt-0.5 line-clamp-1 opacity-70">
+                {session.preview}
+              </div>
+            )}
+            {session.lastMessage && (
+              <div className="text-[11px] text-ink-soft mt-0.5 line-clamp-1">
+                <span className="text-muted">最近：</span>
+                {session.lastMessage}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted">
+              <span>{formatRelative(session.modifiedAt)}</span>
               <span>·</span>
-              <span className="inline-flex items-center gap-0.5 truncate max-w-[100px]">
-                <GitBranch size={9} />
-                {session.gitBranch}
-              </span>
-            </>
-          )}
-        </div>
+              <span>{turns} 轮</span>
+              {session.gitBranch && (
+                <>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-0.5 truncate max-w-[100px]">
+                    <GitBranch size={9} />
+                    {session.gitBranch}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </button>
+      )}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
+        <button
+          onClick={startRename}
+          title="重命名会话"
+          className="mt-0.5 p-1 rounded text-muted hover:bg-bg-hover hover:text-ink"
+        >
+          <Pencil size={11} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          title="永久删除该会话日志"
+          className="mt-0.5 p-1 rounded text-muted hover:bg-bg-hover hover:text-red-500"
+        >
+          <Trash2 size={11} />
+        </button>
       </div>
-      <Play
-        size={11}
-        className="mt-1 text-muted opacity-0 group-hover:opacity-100 shrink-0"
-      />
-    </button>
+    </div>
   )
 }
 

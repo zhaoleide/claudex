@@ -24,6 +24,8 @@ export type ClaudeSession = {
   messageCount?: number
   /** Optional git branch parsed from the log */
   gitBranch?: string
+  /** User-assigned custom name */
+  customName?: string
 }
 
 export type LaunchOptions = {
@@ -80,6 +82,9 @@ export const IPC = {
   // Sessions (resume)
   sessionsList: 'sessions:list',
   sessionsListAll: 'sessions:listAll',
+  sessionsDelete: 'sessions:delete',
+  sessionsRename: 'sessions:rename',
+  sessionsChanged: 'sessions:changed', // main -> renderer (file watcher notify)
 
   // Claude config
   configRead: 'config:read', // settings.json

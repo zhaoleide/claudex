@@ -51,7 +51,18 @@ const api = {
     list: (projectPath: string): Promise<ClaudeSession[]> =>
       ipcRenderer.invoke(IPC.sessionsList, projectPath),
     listAll: (): Promise<Record<string, ClaudeSession[]>> =>
-      ipcRenderer.invoke(IPC.sessionsListAll)
+      ipcRenderer.invoke(IPC.sessionsListAll),
+    delete: (id: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.sessionsDelete, { id }),
+    rename: (id: string, name: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC.sessionsRename, { id, name }),
+    onChanged: (cb: () => void) => {
+      const listener = () => cb()
+      ipcRenderer.on(IPC.sessionsChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC.sessionsChanged, listener)
+      }
+    }
   },
 
   // Config ---------------------------------------------------------------
@@ -84,7 +95,7 @@ const api = {
 
   // Auto Update ----------------------------------------------------------
   update: {
-    check: (): Promise<{ success: boolean; error?: string }> =>
+    check: (): Promise<{ success: boolean; error?: string; available?: boolean }> =>
       ipcRenderer.invoke(IPC.updateCheck),
     download: (): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke(IPC.updateDownload),
@@ -110,7 +121,7 @@ const api = {
       return () => ipcRenderer.removeListener(IPC.updateAvailable, listener)
     },
     onNotAvailable: (cb: () => void) => {
-      const listener = (_evt: unknown) => cb()
+      const listener = () => cb()
       ipcRenderer.on(IPC.updateNotAvailable, listener)
       return () => ipcRenderer.removeListener(IPC.updateNotAvailable, listener)
     },

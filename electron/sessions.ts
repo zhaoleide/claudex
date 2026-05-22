@@ -1,5 +1,6 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain, app, BrowserWindow } from 'electron'
 import fs from 'node:fs/promises'
+import fsSync from 'node:fs'
 import path from 'node:path'
 import { IPC } from '../shared/ipc'
 import type { ClaudeSession } from '../shared/ipc'
@@ -18,6 +19,31 @@ import type { ClaudeSession } from '../shared/ipc'
 type Jsonl = Record<string, unknown>
 
 const PREVIEW_MAX = 200
+
+// --- Session custom names store ---
+const namesFile = path.join(
+  process.env.HOME || '/tmp',
+  '.claude',
+  'claudex-session-names.json'
+)
+let namesCache: Record<string, string> = {}
+
+function loadNames(): Record<string, string> {
+  try {
+    namesCache = JSON.parse(fsSync.readFileSync(namesFile, 'utf-8'))
+  } catch {
+    namesCache = {}
+  }
+  return namesCache
+}
+
+function saveNames() {
+  fsSync.mkdirSync(path.dirname(namesFile), { recursive: true })
+  fsSync.writeFileSync(namesFile, JSON.stringify(namesCache, null, 2))
+}
+
+// Load on module init
+loadNames()
 
 function isUserTurnContent(content: unknown): boolean {
   if (typeof content === 'string') return content.trim().length > 0
@@ -164,11 +190,46 @@ function toSession(p: ParsedSession): ClaudeSession {
     preview: p.preview,
     lastMessage: p.lastMessage,
     messageCount: p.messageCount,
-    gitBranch: p.gitBranch
+    gitBranch: p.gitBranch,
+    customName: namesCache[p.id]
+  }
+}
+
+let watcher: fsSync.FSWatcher | null = null
+let notifyTimer: NodeJS.Timeout | null = null
+
+function startWatching() {
+  if (watcher) return
+  const root = path.join(app.getPath('home'), '.claude', 'projects')
+  try {
+    fsSync.mkdirSync(root, { recursive: true })
+    console.log('[sessions] watching:', root)
+    watcher = fsSync.watch(root, { recursive: true }, (event, filename) => {
+      console.log('[sessions] fs event:', event, filename)
+      // Debounce: many writes hit in quick succession while a session is active
+      if (notifyTimer) clearTimeout(notifyTimer)
+      notifyTimer = setTimeout(() => {
+        notifyTimer = null
+        const wins = BrowserWindow.getAllWindows()
+        console.log('[sessions] notifying', wins.length, 'window(s)')
+        for (const win of wins) {
+          if (!win.isDestroyed()) {
+            win.webContents.send(IPC.sessionsChanged)
+          }
+        }
+      }, 800)
+    })
+    watcher.on('error', (err) => {
+      console.error('[sessions] watcher error:', err)
+    })
+  } catch (err) {
+    console.error('[sessions] failed to start watcher:', err)
   }
 }
 
 export function registerSessionHandlers() {
+  startWatching()
+
   ipcMain.handle(
     IPC.sessionsList,
     async (_evt, projectPath: string): Promise<ClaudeSession[]> => {
@@ -182,6 +243,62 @@ export function registerSessionHandlers() {
       }
       out.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
       return out
+    }
+  )
+
+  // 永久删除某个会话的 .jsonl 文件
+  ipcMain.handle(
+    IPC.sessionsDelete,
+    async (
+      _evt,
+      payload: { id: string }
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const id = payload?.id
+      // 防止路径穿越：只允许 UUID 风格字符
+      if (!id || !/^[A-Za-z0-9._-]+$/.test(id)) {
+        return { ok: false, error: 'invalid session id' }
+      }
+      const root = path.join(app.getPath('home'), '.claude', 'projects')
+      let dirs: string[]
+      try {
+        dirs = await fs.readdir(root)
+      } catch {
+        return { ok: false, error: 'projects dir missing' }
+      }
+      for (const dir of dirs) {
+        const candidate = path.join(root, dir, `${id}.jsonl`)
+        try {
+          await fs.unlink(candidate)
+          console.log('[sessions] deleted:', candidate)
+          return { ok: true }
+        } catch {
+          // 不在这个目录里，继续找
+        }
+      }
+      return { ok: false, error: 'session file not found' }
+    }
+  )
+
+  // 重命名会话（设置自定义名称）
+  ipcMain.handle(
+    IPC.sessionsRename,
+    async (
+      _evt,
+      payload: { id: string; name: string }
+    ): Promise<{ ok: boolean }> => {
+      const { id, name } = payload ?? {}
+      if (!id) return { ok: false }
+      if (name) {
+        namesCache[id] = name
+      } else {
+        delete namesCache[id]
+      }
+      saveNames()
+      // 通知前端刷新
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send(IPC.sessionsChanged)
+      }
+      return { ok: true }
     }
   )
 
