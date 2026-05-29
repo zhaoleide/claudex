@@ -46,12 +46,15 @@ export function registerPtyHandlers(getWindow: () => BrowserWindow | null) {
     const shell = defaultShell()
     const command = opts.command ?? 'claude'
     const argv = opts.args ?? []
-    const quoted = [command, ...argv]
+    // Default to auto permission mode unless user specified one
+    const hasPermissionMode = argv.some((a) => a.startsWith('--permission-mode'))
+    const permArgs = hasPermissionMode ? [] : ['--permission-mode', 'auto']
+    const quoted = [command, ...permArgs, ...argv]
       .map((s) => `'${String(s).replace(/'/g, `'\\''`)}'`)
       .join(' ')
     const shellArgs =
       process.platform === 'win32'
-        ? ['/d', '/s', '/c', `${command} ${argv.join(' ')}`]
+        ? ['/d', '/s', '/c', `${command} ${[...permArgs, ...argv].join(' ')}`]
         : ['-l', '-i', '-c', `exec ${quoted}`]
 
     let proc: nodePty.IPty
